@@ -1,0 +1,82 @@
+version: "2.0"
+services:
+  #PHP Service
+  laravel:
+    build:
+      context: ./
+      dockerfile: laravel.dockerfile
+    image: laravel
+    user: "1000:1000"
+    container_name: laravel
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: laravel
+      SERVICE_TAGS: dev
+    working_dir: /var/www/html/
+    volumes:
+      - ./:/var/www/html/
+      - ./php/laravel.ini:/usr/local/etc/php/conf.d/laravel.ini
+    networks:
+      - app-network
+
+  vue:
+    stdin_open: true
+    container_name: vue
+    restart: always
+    build:
+      context: ../vue
+      dockerfile: vue.dockerfile
+    volumes:
+      - /app/node_modules
+      - ../vue:/app:cached
+    networks:
+      - app-network
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    expose: 
+      - "80"
+    ports: 
+      - "8080:8080"
+      - "8081:8081"
+
+  #Nginx Service
+  webserver:
+    depends_on:
+      - laravel
+      - vue
+    build:
+      context: ./nginx
+      dockerfile: nginx.dockerfile
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+  
+  #Mysql DB
+  mysql:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    tty: true
+    ports:
+        - "33061:3306"
+    environment:
+        MYSQL_ROOT_PASSWORD: secret
+        MYSQL_DATABASE: laravel
+    volumes:
+      - ../mysql:/mysql
+    networks:
+      - app-network
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql:
+    driver: local
